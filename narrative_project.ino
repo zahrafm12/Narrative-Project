@@ -22,7 +22,7 @@ void loop() {
 
 
 
-//insert code for scene 1: person pulls boat across water, interaction turns LED in the next scene ON
+//insert code for scene 1: person pulls boat across water, interaction turns LED in the next scene ON 
 //insert code for scene 2: person pulls the jar up (with remy in it) to trigger servo moves to show linguini holding remy outside the jar.
 //inset code for scene 3: person put a mini chef hat on remy, triggers remy's arms to pull linguini's hair
 //insert code for scene 4: person moves small chef guy to a lightswitch on the wall, triggers the LED to turn on behind linguini's hat, shows Remy shadow. 
