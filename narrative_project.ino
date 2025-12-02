@@ -1,24 +1,24 @@
 #include <Servo.h>
 
 // Servos
-Servo linguiniServo;    // Scene 2: Linguini holds jar (Pin 10)
-Servo remyArmServo;     // Scene 3: Remy pulls hat (Pin 6)
-Servo pantryDoorServo;  // Scene 5: Pantry door opens (Pin 4)
+Servo linguiniServo;    
+Servo remyArmServo;     
+Servo pantryDoorServo;  
 
 // LEDs
 const int scene2LedPin = 9;
-const int hatLedPin = 2; // Hat LED (Pin 2)
+const int hatLedPin = 2;
 
 // Sensors (LOW = pressed)
 const int boatSensorPin = 12;
 const int jarSensorPin = 8;
 const int hatSensorPin = 7;
-const int switchSensorPin = 3;  // Scene 4 trigger
-const int pantrySensorPin = 5;  // Scene 5 trigger
+const int switchSensorPin = 3;
+const int pantrySensorPin = 5;
 
 // Scene tracking
 int currentScene = 1;
-bool boatWasPressed = false;  // track Scene 1 press
+bool boatWasPressed = false;
 
 // Scene 2 tracking
 bool linguiniTurned = false;
@@ -29,27 +29,25 @@ int lastJarState = HIGH;
 bool hatWasPressed = false;
 bool scene3MovementComplete = false;
 
-// Scene 5 tracking (NEW FLAG to manage single-movement and prevent spinning)
+// Scene 5 tracking
 bool pantryOpened = false;
 
 void setup() {
+
   Serial.begin(9600);
   Serial.println("Ratatouille Scene Controller: Starting up...");
 
-  linguiniServo.attach(10);
+  linguiniServo.attach(11);
   remyArmServo.attach(6);
   pantryDoorServo.attach(4);
 
   // Starting positions
-  linguiniServo.write(90);    // Neutral position
-  remyArmServo.write(180);    // Horizontal (closed) position
-  pantryDoorServo.write(0);   // Door closed (0 degrees is the assumed closed position)
-  
-  // Detach servos that are not needed immediately to prevent spinning/jitter
-  pantryDoorServo.detach();
-  
-  Serial.println("Initial servos set and detached. Waiting for Scene 1 trigger.");
+  linguiniServo.write(90);
+  remyArmServo.write(180);
+  pantryDoorServo.write(0);
 
+  // Detach pantry servo so it cannot move early
+  pantryDoorServo.detach();
 
   pinMode(scene2LedPin, OUTPUT);
   pinMode(hatLedPin, OUTPUT);
@@ -63,32 +61,34 @@ void setup() {
   // LEDs start OFF
   digitalWrite(scene2LedPin, LOW);
   digitalWrite(hatLedPin, LOW);
+
+  Serial.println("Setup complete.");
 }
 
 void loop() {
 
-  // ---------- Scene 1: Boat ----------
+  // ---------- Scene 1 ----------
   if (currentScene == 1) {
+
     int boatState = digitalRead(boatSensorPin);
 
-    // Detect press
     if (boatState == LOW && !boatWasPressed) {
       boatWasPressed = true;
-      Serial.println("Scene 1: Boat press detected.");
+      Serial.println("Scene 1: Boat pressed.");
     }
 
-    // Detect release after press
     if (boatState == HIGH && boatWasPressed) {
-      digitalWrite(scene2LedPin, HIGH); // Signal ready for Scene 2
+      digitalWrite(scene2LedPin, HIGH);
       currentScene = 2;
       boatWasPressed = false;
       jarSensorReady = false;
-      Serial.println("Scene 1 COMPLETE. Moving to Scene 2.");
+      Serial.println("Scene 1 COMPLETE → Scene 2");
     }
   }
 
-  // ---------- Scene 2: Jar/Linguini ----------
+  // ---------- Scene 2 ----------
   else if (currentScene == 2) {
+
     int jarState = digitalRead(jarSensorPin);
 
     if (!jarSensorReady) {
@@ -96,121 +96,117 @@ void loop() {
       jarSensorReady = true;
     }
 
-    // Trigger on jar removal (LOW to HIGH transition)
     if (jarState == HIGH && lastJarState == LOW && !linguiniTurned) {
-      Serial.println("Scene 2: Jar removed, Linguini moving.");
-      linguiniTurned = true;
 
+      Serial.println("Scene 2: Jar removed — moving Linguini");
+
+      linguiniTurned = true;
       linguiniServo.write(0);
       delay(450);
-      linguiniServo.write(90); // Stop movement
+      linguiniServo.write(90);
 
-      // Ensure Remy arm is in start position
       remyArmServo.write(180);
 
       currentScene = 3;
       scene3MovementComplete = false;
-      Serial.println("Scene 2 COMPLETE. Moving to Scene 3.");
+
+      Serial.println("Scene 2 COMPLETE → Scene 3");
     }
 
     lastJarState = jarState;
   }
 
-  // ---------- Scene 3: Hat Wiggle ----------
-else if (currentScene == 3) {
-    // Ensure hat LED is OFF during Scene 3
+  // ---------- Scene 3 ----------
+  else if (currentScene == 3) {
+
     digitalWrite(hatLedPin, LOW);
 
-    // Ensure pantry servo is not attached
     if (pantryDoorServo.attached()) {
-        pantryDoorServo.detach(); 
+      pantryDoorServo.detach();
     }
 
     int hatState = digitalRead(hatSensorPin);
 
-    // Trigger wiggle once
     if (hatState == LOW && !hatWasPressed && !scene3MovementComplete) {
-        Serial.println("Scene 3: Hat sensor activated, wiggling.");
-        hatWasPressed = true;
+      Serial.println("Scene 3: Hat pressed — wiggle.");
 
-        for (int i = 0; i < 7; i++) {
-            remyArmServo.write(140);
-            delay(300);
-            remyArmServo.write(220);
-            delay(300);
-        }
+      hatWasPressed = true;
 
-        remyArmServo.write(180); // Return to neutral
-        scene3MovementComplete = true;
+      for (int i = 0; i < 7; i++) {
+        remyArmServo.write(140);
+        delay(300);
+        remyArmServo.write(220);
+        delay(300);
+      }
+
+      remyArmServo.write(180);
+      scene3MovementComplete = true;
     }
 
-    // Advance scene only when hat released after wiggle
     if (scene3MovementComplete && hatState == HIGH) {
-        hatWasPressed = false;
-        currentScene = 4;
-        Serial.println("Scene 3 COMPLETE. Moving to Scene 4.");
+      hatWasPressed = false;
+      currentScene = 4;
+      Serial.println("Scene 3 COMPLETE → Scene 4");
     }
-}
+  }
 
-// ---------- Scene 4: Switch LED (Fixed: LED stays ON) ----------
-else if (currentScene == 4) {
-    // NOTE: The LED is kept OFF by default until the switch is pressed.
-    
+  // ----------------------------------------------------
+  // ---------- NEW SCENE 4 (Stable, No Flicker) --------
+  // ----------------------------------------------------
+  else if (currentScene == 4) {
+
+    digitalWrite(hatLedPin, LOW);   // stays OFF unless switch pressed
+
+    static bool switchLatched = false;
+
     int switchState = digitalRead(switchSensorPin);
-    
-    // Check if the switch is pressed (LOW)
-    if (switchState == LOW) {
-        delay(50); // debounce
-        if (digitalRead(switchSensorPin) == LOW) {
-            
-            // ACTION: Turn the LED ON permanently
-            digitalWrite(hatLedPin, HIGH); 
-            Serial.println("SCENE 4: Hat LED activated. Moving to Scene 5.");
-            
-            currentScene = 5;
-        }
-    }
-}
 
+    // Detect press only once
+    if (switchState == LOW && !switchLatched) {
 
-  // ---------- Scene 5: Pantry Door (Fixed: Single movement and no spinning) ----------
-  else if (currentScene == 5 && !pantryOpened) {
-    int pantryState = digitalRead(pantrySensorPin);
-    
-    // Detect sensor trigger (LOW)
-    if (pantryState == LOW) {
-      delay(50); // Debounce delay
-      if (digitalRead(pantrySensorPin) == LOW) {
-        
-        Serial.println("SCENE 5 TRIGGERED: Pantry sensor activated.");
-        
-        // CRITICAL: Re-attach the servo only when movement is needed.
-        pantryDoorServo.attach(4);
-        
-        // ACTION: Move servo 90 degrees (open) exactly once.
-        pantryDoorServo.write(90); 
-        pantryOpened = true;
-        Serial.println("Scene 5: pantry door OPEN (90 degrees)");
+      delay(50); // debounce
+      if (digitalRead(switchSensorPin) == LOW) {
 
-        // Wait briefly for the servo to complete the physical movement.
-        delay(500); 
+        switchLatched = true;
+        digitalWrite(hatLedPin, HIGH);
 
-        // CRITICAL: Detach the servo to stop the PWM signal immediately and prevent spinning.
-        pantryDoorServo.detach(); 
-        Serial.println("Servo detached. Movement complete.");
+        Serial.println("SCENE 4: Switch pressed → LED ON");
+        Serial.println("Scene 4 COMPLETE → Scene 5");
 
-        currentScene = 6; // Advance to the end scene
+        currentScene = 5;
       }
     }
   }
 
-  // ---------- Scene 6: End State ----------
-  else if (currentScene == 6) {
-    // Only print once upon entering the end state
-    if (pantryOpened) {
-      Serial.println("STORY COMPLETE!");
-      pantryOpened = false; 
+  // ----------------------------------------------------
+  // ---------- NEW SCENE 5 (Move Pantry 180 Once) ------
+  // ----------------------------------------------------
+  else if (currentScene == 5 && !pantryOpened) {
+
+    int pantryState = digitalRead(pantrySensorPin);
+
+    if (pantryState == LOW) {
+
+      delay(50); // debounce
+      if (digitalRead(pantrySensorPin) == LOW) {
+
+        Serial.println("SCENE 5: Pantry triggered!");
+
+        pantryDoorServo.attach(4);
+        pantryDoorServo.write(180);     // full open
+        delay(700);
+
+        pantryDoorServo.detach();
+        pantryOpened = true;
+
+        Serial.println("Scene 5 COMPLETE → Scene 6");
+        currentScene = 6;
+      }
     }
-    // All action stops here.
+  }
+
+  // ---------- Scene 6 ----------
+  else if (currentScene == 6) {
+    // End state — nothing moves
   }
 }
